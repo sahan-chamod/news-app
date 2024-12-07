@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../viewmodels/news_viewmodel.dart';
 import 'article_detail_view.dart';
 import 'Bookmarks.dart';
@@ -17,41 +17,47 @@ class _HomeViewState extends State<HomeView>
   late TabController _tabController;
 
   final List<String> categories = [
-    'technology',
-    'politics',
-    'science',
-    'health'
+    'Technology',
+    'Politics',
+    'Science',
+    'Health',
   ];
   Timer? _debounce;
 
   DateTime? _startDate;
   DateTime? _endDate;
+  String? _selectedLanguage;
+
+  final List<String> supportedLanguages = ['en', 'fr', 'es', 'de', 'zh'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: categories.length, vsync: this);
 
     _tabController.addListener(() {
       if (_tabController.indexIsChanging) {
-        String category = categories[_tabController.index];
-        Provider.of<NewsViewModel>(context, listen: false)
-            .fetchArticlesByCategory(category);
+        return;
       }
+      String category = categories[_tabController.index].toLowerCase();
+      Provider.of<NewsViewModel>(context, listen: false)
+          .fetchArticlesByCategory(category);
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<NewsViewModel>(context, listen: false)
-          .fetchArticlesByCategory(categories[0]);
-      Provider.of<NewsViewModel>(context, listen: false).fetchBookmarks();
+      final viewModel = Provider.of<NewsViewModel>(context, listen: false);
+      viewModel.fetchArticlesByCategory(categories[0].toLowerCase());
+      viewModel.fetchBookmarks();
     });
 
-    _searchController.addListener(() {
-      if (_debounce?.isActive ?? false) _debounce?.cancel();
-      _debounce = Timer(const Duration(milliseconds: 500), () {
-        Provider.of<NewsViewModel>(context, listen: false)
-            .searchNews(_searchController.text);
-      });
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      Provider.of<NewsViewModel>(context, listen: false)
+          .searchNews(_searchController.text);
     });
   }
 
@@ -74,7 +80,7 @@ class _HomeViewState extends State<HomeView>
     if (pickedStartDate != null) {
       final DateTime? pickedEndDate = await showDatePicker(
         context: context,
-        initialDate: _endDate ?? DateTime.now(),
+        initialDate: _endDate ?? pickedStartDate,
         firstDate: pickedStartDate,
         lastDate: DateTime.now(),
       );
@@ -85,10 +91,20 @@ class _HomeViewState extends State<HomeView>
           _endDate = pickedEndDate;
         });
 
-        // Apply the date filter
         Provider.of<NewsViewModel>(context, listen: false)
             .filterArticlesByDateRange(_startDate!, _endDate!);
       }
+    }
+  }
+
+  void _selectLanguage(String? language) {
+    setState(() {
+      _selectedLanguage = language;
+    });
+
+    if (language != null) {
+      Provider.of<NewsViewModel>(context, listen: false)
+          .filterArticlesByLanguage(language);
     }
   }
 
@@ -96,31 +112,22 @@ class _HomeViewState extends State<HomeView>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: 'News',
-                style: TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
-              ),
-              TextSpan(
-                text: ' Feed',
-                style: TextStyle(
-                  color: Colors.green,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
-              ),
-            ],
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.blueAccent, Colors.deepPurpleAccent],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
+        ),
+        title: const Text(
+          'News Feed',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.bookmark),
+            icon: const Icon(Icons.bookmark_border),
             onPressed: () {
               Navigator.push(
                 context,
@@ -129,12 +136,22 @@ class _HomeViewState extends State<HomeView>
             },
           ),
           IconButton(
-            icon: Icon(Icons.date_range),
+            icon: const Icon(Icons.date_range),
             onPressed: () => _selectDateRange(context),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.language),
+            onSelected: _selectLanguage,
+            itemBuilder: (context) => supportedLanguages
+                .map((lang) => PopupMenuItem(
+                      value: lang,
+                      child: Text(lang.toUpperCase()),
+                    ))
+                .toList(),
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(kToolbarHeight + 48),
+          preferredSize: const Size.fromHeight(kToolbarHeight + 80),
           child: Column(
             children: [
               Padding(
@@ -143,25 +160,29 @@ class _HomeViewState extends State<HomeView>
                   controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search news...',
-                    suffixIcon: IconButton(
-                      icon: Icon(Icons.search),
-                      onPressed: () {
-                        Provider.of<NewsViewModel>(context, listen: false)
-                            .searchNews(_searchController.text);
-                      },
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25.0),
+                      borderSide: BorderSide.none,
                     ),
-                    border: OutlineInputBorder(),
                   ),
                 ),
               ),
               TabBar(
                 controller: _tabController,
-                tabs: [
-                  Tab(text: 'Tech'),
-                  Tab(text: 'Politics'),
-                  Tab(text: 'Science'),
-                  Tab(text: 'Health'),
-                ],
+                isScrollable: true,
+                indicator: UnderlineTabIndicator(
+                  borderSide: BorderSide(
+                    width: 3,
+                    color: Colors.greenAccent,
+                  ),
+                ),
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white70,
+                tabs:
+                    categories.map((category) => Tab(text: category)).toList(),
               ),
             ],
           ),
@@ -170,7 +191,7 @@ class _HomeViewState extends State<HomeView>
       body: Consumer<NewsViewModel>(
         builder: (context, viewModel, child) {
           if (viewModel.isLoading) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (viewModel.error.isNotEmpty) {
@@ -179,12 +200,7 @@ class _HomeViewState extends State<HomeView>
 
           return TabBarView(
             controller: _tabController,
-            children: [
-              _buildNewsList(viewModel),
-              _buildNewsList(viewModel),
-              _buildNewsList(viewModel),
-              _buildNewsList(viewModel),
-            ],
+            children: categories.map((_) => _buildNewsList(viewModel)).toList(),
           );
         },
       ),
@@ -193,54 +209,112 @@ class _HomeViewState extends State<HomeView>
 
   Widget _buildNewsList(NewsViewModel viewModel) {
     return ListView.builder(
+      padding: const EdgeInsets.all(8.0),
       itemCount: viewModel.articles.length,
       itemBuilder: (context, index) {
         final article = viewModel.articles[index];
         final isBookmarked = viewModel.isBookmarked(article.title);
 
-        return ListTile(
-          title: Text(article.title),
-          subtitle: Text(article.description ?? ''),
-          leading: article.urlToImage.isNotEmpty
-              ? Image.network(
-                  article.urlToImage,
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.cover,
-                )
-              : null,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: Icon(
-                  isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                  color: isBookmarked ? Colors.blue : null,
-                ),
-                onPressed: () {
-                  if (isBookmarked) {
-                    viewModel.removeBookmark(article.title);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Removed from bookmarks')),
-                    );
-                  } else {
-                    viewModel.addBookmark(article);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Added to bookmarks')),
-                    );
-                  }
-                },
-              ),
-            ],
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 8.0),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15.0),
           ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ArticleDetailView(article: article),
-              ),
-            );
-          },
+          elevation: 5,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ArticleDetailView(article: article),
+                ),
+              );
+            },
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (article.urlToImage.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(15.0),
+                      bottomLeft: Radius.circular(15.0),
+                    ),
+                    child: Image.network(
+                      article.urlToImage,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          article.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          article.description ?? '',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                isBookmarked
+                                    ? Icons.bookmark
+                                    : Icons.bookmark_border,
+                                color: isBookmarked
+                                    ? Colors.blueAccent
+                                    : Colors.grey,
+                              ),
+                              onPressed: () {
+                                if (isBookmarked) {
+                                  viewModel.removeBookmark(article.title);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('Removed from bookmarks')),
+                                  );
+                                } else {
+                                  viewModel.addBookmark(article);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Added to bookmarks')),
+                                  );
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.share, color: Colors.grey),
+                              onPressed: () {
+                                final String shareText =
+                                    '${article.title}\n\n${article.description ?? ''}\nRead more: ${article.url}';
+                                Share.share(shareText);
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -22,7 +23,7 @@ class DBHelper {
     String path = join(await getDatabasesPath(), 'bookmarks.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) {
         db.execute('''
           CREATE TABLE bookmarks(
@@ -33,9 +34,18 @@ class DBHelper {
             urlToImage TEXT,
             publishedAt TEXT,
             content TEXT,
-            author TEXT
+            author TEXT,
+            language TEXT  -- Added language column
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Add the 'language' column if it's missing
+          await db.execute('''
+            ALTER TABLE bookmarks ADD COLUMN language TEXT;
+          ''');
+        }
       },
     );
   }
@@ -58,4 +68,23 @@ class DBHelper {
     final db = await database;
     return db.query('bookmarks');
   }
+
+Future<List<Map<String, dynamic>>> fetchArticlesByDateRange(
+    DateTime startDate, DateTime endDate) async {
+  final db = await database;
+
+  // Query the database for articles within the date range
+  final results = await db.query(
+    'bookmarks',
+    where: "publishedAt BETWEEN ? AND ?",
+    whereArgs: [startDate.toIso8601String(), endDate.toIso8601String()],
+  );
+
+  // Debugging log to check the number of articles found
+  debugPrint("Query Results: ${results.length} articles found");
+
+  // Return the fetched results
+  return results;
+}
+
 }

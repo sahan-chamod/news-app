@@ -6,6 +6,7 @@ class Article {
   final String publishedAt;
   final String content;
   final String author;
+  final String language; 
 
   Article({
     required this.title,
@@ -15,7 +16,9 @@ class Article {
     required this.publishedAt,
     required this.content,
     required this.author,
+    required this.language, 
   });
+
 
   factory Article.fromJson(Map<String, dynamic> json) {
     return Article(
@@ -26,9 +29,11 @@ class Article {
       publishedAt: json['publishedAt'] ?? '',
       content: json['content'] ?? 'No Content',
       author: json['author'] ?? 'Unknown Author',
+      language: json['language'] ?? 'en', 
     );
   }
 
+  
   Map<String, dynamic> toMap() {
     return {
       'title': title,
@@ -38,9 +43,11 @@ class Article {
       'publishedAt': publishedAt,
       'content': content,
       'author': author,
+      'language': language, 
     };
   }
 
+ 
   factory Article.fromMap(Map<String, dynamic> map) {
     return Article(
       title: map['title'] ?? 'No Title',
@@ -50,6 +57,7 @@ class Article {
       publishedAt: map['publishedAt'] ?? '',
       content: map['content'] ?? 'No Content',
       author: map['author'] ?? 'Unknown Author',
+      language: map['language'] ?? 'en', 
     );
   }
 }
